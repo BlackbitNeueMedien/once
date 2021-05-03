@@ -4,12 +4,15 @@ namespace Spatie\Once;
 
 class Backtrace
 {
-    /** @var array */
-    protected $trace;
+    protected array $trace;
+
+    protected array $zeroStack;
 
     public function __construct(array $trace)
     {
-        $this->trace = $trace;
+        $this->trace = $trace[1];
+
+        $this->zeroStack = $trace[0];
     }
 
     public function getArguments()
@@ -22,12 +25,13 @@ class Backtrace
         return $this->trace['function'];
     }
 
-    /**
-     * @return mixed
-     */
-    public function getObject()
+    public function getObject(): mixed
     {
-        return $this->trace['object'];
+        if ($this->globalFunction()) {
+            return $this->zeroStack['file'];
+        }
+
+        return $this->staticCall() ? $this->trace['class'] : $this->trace['object'];
     }
 
     public function getHash()
@@ -36,6 +40,21 @@ class Backtrace
             return is_object($argument) ? spl_object_hash($argument) : $argument;
         }, $this->getArguments());
 
-        return md5($this->getFunctionName().serialize($normalizedArguments));
+        $prefix = $this->getFunctionName();
+        if (str_contains($prefix, '{closure}')) {
+            $prefix = $this->zeroStack['line'];
+        }
+
+        return md5($prefix.serialize($normalizedArguments));
+    }
+
+    protected function staticCall(): bool
+    {
+        return $this->trace['type'] === '::';
+    }
+
+    protected function globalFunction(): bool
+    {
+        return ! isset($this->trace['type']);
     }
 }

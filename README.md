@@ -1,4 +1,6 @@
-# A magic memoization function
+<p align="center"><img src="/art/socialcard.png" alt="Social Card of Once"></p>
+
+# A magic [memoization](https://en.wikipedia.org/wiki/Memoization) function
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/spatie/once.svg?style=flat-square)](https://packagist.org/packages/spatie/once)
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE.md)
@@ -10,28 +12,29 @@
 This package contains a `once` function. You can pass a `callable` to it. Here's quick example:
 
 ```php
-class MyClass
-{
-    function getNumber()
+$myClass = new class() {
+    public function getNumber(): int
     {
         return once(function () {
             return rand(1, 10000);
         });
     }
-}
+};
 ```
- 
-No matter how many times you run `(new MyClass())->getNumber()` inside the same request  you'll always get the same number.
 
-Spatie is a webdesign agency based in Antwerp, Belgium. You'll find an overview of all our open source projects [on our website](https://spatie.be/opensource).
+No matter how many times you run `$myClass->getNumber()` inside the same request  you'll always get the same number.
 
-## Postcardware
+## Are you a visual learner?
 
-You're free to use this package (it's [MIT-licensed](LICENSE.md)), but if it makes it to your production environment we highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using.
+Under the hood, this package uses a PHP 8 Weakmap. [In this video](https://www.youtube.com/watch?v=-lFyHJqzfFU&list=PLjzBMxW2XGTwEwWumYBaFHy1z4W32TcjU&index=13), you'll see what a weakmap is, together with a nice demo of the package.
 
-Our address is: Spatie, Samberstraat 69D, 2060 Antwerp, Belgium.
+## Support us
 
-All postcards are published [on our website](https://spatie.be/en/opensource).
+[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/once.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/once)
+
+We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
+
+We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
 
 ## Installation
 
@@ -46,25 +49,27 @@ composer require spatie/once
 The `once` function accepts a `callable`.
 
 ```php
-class MyClass
-{
-    function getNumber()
+$myClass = new class() {
+    public function getNumber(): int
     {
         return once(function () {
             return rand(1, 10000);
         });
     }
-}
+};
 ```
 
-No matter how many times you run `(new MyClass())->getNumber()` you'll always get the same number.
+No matter how many times you run `$myClass->getNumber()` you'll always get the same number.
 
 The `once` function will only run once per combination of argument values the containing method receives.
 
 ```php
 class MyClass
 {
-    public function getNumberForLetter($letter)
+    /**
+     * It also works in static context!
+     */
+    public static function getNumberForLetter($letter)
     {
         return once(function () use ($letter) {
             return $letter . rand(1, 10000000);
@@ -73,17 +78,35 @@ class MyClass
 }
 ```
 
-So calling `(new MyClass())->getNumberForLetter('A')` will always return the same result, but calling `(new MyClass())->getNumberForLetter('B')` will return something else.
+So calling `MyClass::getNumberForLetter('A')` will always return the same result, but calling `MyClass::getNumberForLetter('B')` will return something else.
 
-**Note:** In order to use `once` on classes that have the magic method `__get` defined, you will need to either manually define the `__memoized` property on your object, or use the include `MemoizeAwareTrait.` This applies particularly to Laravel Eloquent models.
+### Flushing the cache
 
-## Behind the curtains
+To flush the entire cache you can call:
 
-Let's go over [the code of the `once` function](https://github.com/spatie/once/blob/4954c54/src/functions.php) to learn how all the magic works.
+```php
+Spatie\Once\Cache::getInstance()->flush();
+```
 
-In short: it will execute the given callable and save the result in a an array in the `__memoized` property of the instance `once` was called in. When we detect that `once` has already run before, we're just going to return the value stored inside the `__memoized` array instead of executing the callable again.
+### Disabling the cache
 
-The first thing it does it calling [`debug_backtrace`](http://php.net/manual/en/function.debug-backtrace.php). We'll use the output to determine in which function and class `once` is called and to get access to the `object` that function is running in. Yeah, we're already in voodoo-land. The output of the `debug_backtrace` is passed to a new instance of `Backtrace`. That class is just a simple wrapper so we can work more easily with the backtrace.
+In your test you probably don't want to cache values. To disable the cache you can call:
+
+```php
+Spatie\Once\Cache::getInstance()->disable();
+```
+
+You can re-enable the cache with
+
+```php
+Spatie\Once\Cache::getInstance()->enable();
+```
+
+## Under the hood
+
+The `once` function will execute the given callable and save the result in the  `$values` property of `Spatie\Once\Cache`. This class [is a singleton](https://github.com/spatie/once/blob/9decd70a76664ff451fb10f65ac360290a6a50e6/src/Cache.php#L15-L27). When we detect that `once` has already run before, we're just going to return the value stored inside [the `$values` weakmap](https://github.com/spatie/once/blob/9decd70a76664ff451fb10f65ac360290a6a50e6/src/Cache.php#L11) instead of executing the callable again.
+
+The first thing it does is calling [`debug_backtrace`](http://php.net/manual/en/function.debug-backtrace.php). We'll use the output to determine in which function and class `once` is called and to get access to the `object` that function is running in. Yeah, we're already in voodoo-land. The output of the `debug_backtrace` is passed to a new instance of `Backtrace`. That class is just a simple wrapper, so we can work more easily with the backtrace.
 
 ```php
 $trace = debug_backtrace(
@@ -91,35 +114,29 @@ $trace = debug_backtrace(
 )[1];
 
 $backtrace = new Backtrace($trace);
+
+$object = $backtrace->getObject();
 ```
 
-Next, we're going to check if `once` was called from within an object. If it was called from a static method or outside a class, we just bail out.
+Next, we calculate a `hash` of the backtrace. This hash will be unique per function `once` was called in and the values of the arguments that function receives.
 
 ```php
-if (! $object = $backtrace->getObject()) {
-   throw new Exception('Cannot use `once` outside a class');
+$hash = $backtrace->getHash();
+```
+
+Finally, we will check if there's already a value stored for the given hash. If not, then execute the given `$callback` and store the result in the weakmap of `Spatie\Once\Cache`. In the other case, we just return the value from that cache (the `$callback` isn't executed).
+
+```php
+public function has(object $object, string $backtraceHash): bool
+{
+    if (! isset($this->values[$object])) {
+
+        return false;
+    }
+
+    return array_key_exists($backtraceHash, $this->values[$object]);
 }
 ```
-
-Now that we're certain `once` is called within an instance of a class we're going to calculate a `hash` of the backtrace. This hash will be unique per function `once` was called in and the values of the arguments that function receives.
-
-```php
-$hash = $backtrace->getArgumentHash();
-```
-
-Finally we will check if there's already a value stored for the given hash. If not, then execute the given `$callback` and store the result in the `__memoized` array on the object. In the other case just return the value in the `__memoized` array (the `$callback` isn't executed). 
-
-```php
-if (! isset($object->__memoized[$hash])) {
-   $result = call_user_func($callback, $backtrace->getArguments());
-   $object->__memoized[$hash] = $result;
-}
-```
-
-## Caveats
-
-- you can only use the `once` function in non-static class methods
-- if you need to serialize an object that uses `once` be sure to `unset` the `__memoized` property. A perfect place for that would be [the `__sleep` magic method](http://php.net/manual/en/oop4.magic-functions.php)
 
 ## Changelog
 
@@ -128,7 +145,7 @@ Please see [CHANGELOG](CHANGELOG.md) for more information what has changed recen
 ## Testing
 
 ``` bash
-$ composer test
+composer test
 ```
 
 ## Contributing
@@ -144,10 +161,9 @@ If you discover any security related issues, please email freek@spatie.be instea
 - [Freek Van der Herten](https://github.com/freekmurze)
 - [All Contributors](../../contributors)
 
-Credit for the idea of the `once` function goes to [Taylor Otwell](https://twitter.com/taylorotwell/status/794622206567444481). The code for this package is based upon the code he was kind enough to share with us.
+And a special thanks to [Caneco](https://twitter.com/caneco) for the logo ✨
 
-## About Spatie
-Spatie is a webdesign agency based in Antwerp, Belgium. You'll find an overview of all our open source projects [on our website](https://spatie.be/opensource).
+Credit for the idea of the `once` function goes to [Taylor Otwell](https://twitter.com/taylorotwell/status/794622206567444481). The code for this package is based upon the code he was kind enough to share with us.
 
 ## License
 

@@ -1,28 +1,40 @@
 <?php
 
 use Spatie\Once\Backtrace;
+use Spatie\Once\Cache;
 
-function once($callback)
+function once(callable $callback): mixed
 {
     $trace = debug_backtrace(
         DEBUG_BACKTRACE_PROVIDE_OBJECT, 2
-    )[1];
+    );
 
     $backtrace = new Backtrace($trace);
 
-    if (! $object = $backtrace->getObject()) {
-        throw new Exception('Cannot use `once` outside a non-static method of a class');
+    if ($backtrace->getFunctionName() === 'eval') {
+        return call_user_func($callback);
     }
+
+
+    $object = $backtrace->getObject();
 
     $hash = $backtrace->getHash();
 
-    $cacheHit = isset($object->__memoized) && array_key_exists($hash, $object->__memoized);
+    $cache = Cache::getInstance();
 
-    if (! $cacheHit) {
-        $result = call_user_func($callback, $backtrace->getArguments());
-
-        $object->__memoized[$hash] = $result;
+    if (is_string($object)) {
+        $object = $cache;
     }
 
-    return $object->__memoized[$hash];
+    if (! $cache->isEnabled()) {
+        return call_user_func($callback, $backtrace->getArguments());
+    }
+
+    if (! $cache->has($object, $hash)) {
+        $result = call_user_func($callback, $backtrace->getArguments());
+
+       $cache->set($object, $hash, $result);
+    }
+
+    return $cache->get($object, $hash);
 }
